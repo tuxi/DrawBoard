@@ -138,11 +138,11 @@ class ViewController: UIViewController {
         drawView.shapeType = .rect
     }
     @objc func btnRecClicked(sender: UIButton) {
-//        [drawView testRecToFile];
+        drawView.testRecToFile()
     }
     
     @objc func btnPlayClicked(sender: UIButton) {
-//        [drawView testPlayFromFile];
+        drawView.testPlayFromFile()
     }
     @objc func btnEraserClicked(sender: UIButton) {
         let btn = sender

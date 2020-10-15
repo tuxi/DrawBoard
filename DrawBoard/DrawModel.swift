@@ -20,7 +20,7 @@ public enum DrawShapeType: Int, Codable {
     case rect
 }
 
-enum DrawAction: Int, XYDrawable, Codable {
+enum DrawAction: Int, Codable {
     case unknow = 1
     // 撤销
     case undo
@@ -34,32 +34,52 @@ enum DrawAction: Int, XYDrawable, Codable {
     case other
 }
 
-protocol XYDrawable: Codable {
+struct DrawBrushModel: Codable {
+    
+    struct Point: Codable {
+        var x: CGFloat
+        var y: CGFloat
+        var timeOffset: Double
+    }
+    
+    struct Brush: Codable {
+        var brushColor: String
+        var brushWidth: CGFloat
+        var shapeType: DrawShapeType
+        var isEraser: Bool
+        var beginPoint: Point?
+        var endPoint: Point?
+    }
+    
+    /// 三个属性代表三种类型，用于记录用户操作的
+    
+    // 画笔
+    var brush: Brush?
+    // 其他事件，如果action 不为nil，不使用以上属性
+    var action: DrawAction?
+    // 点事件
+    var point: Point?
+    
+    init(brush: Brush) {
+        self.brush = brush
+    }
+    
+    init(point: Point) {
+        self.point = point
+    }
+    
+    init(action: DrawAction) {
+        self.action = action
+    }
     
 }
 
-struct DrawPointModel: XYDrawable {
-    var xPoint: CGFloat
-    var yPoint: CGFloat
-    var timeOffset: Double
-}
-
-struct DrawBrushModel: XYDrawable {
- 
-    var brushColor: String
-    var brushWidth: CGFloat
-    var shapeType: DrawShapeType
-    var isEraser: Bool
-    var beginPoint: DrawPointModel?
-    var endPoint: DrawPointModel?
-}
-
-struct DrawPackageModel  {
-    var pointOrBrushArray: [XYDrawable]
+struct DrawPackageModel: Codable  {
+    var pointOrBrushArray: [DrawBrushModel]
     
 }
 
-class DrawFile {
+class DrawFile: Codable {
     var packageArray: [DrawPackageModel]
 
     init(packageArray: [DrawPackageModel]) {

@@ -10,9 +10,9 @@ import UIKit
 
 private var MAX_UNDO_COUNT: Int = 10
 
-extension UIColor {
+fileprivate extension UIColor {
     ///16进制转rgb
-    public convenience init?(hexString: String, alpha: CGFloat = 1.0) {
+    convenience init?(hexString: String, alpha: CGFloat = 1.0) {
         var formatted = hexString.replacingOccurrences(of: "0x", with: "")
         formatted = formatted.replacingOccurrences(of: "#", with: "")
         if let hex = Int(formatted, radix: 16) {
@@ -87,7 +87,7 @@ public class DrawView: UIView {
     private lazy var redoArray = [String]()
     //linyl
     //记录脚本用
-    private lazy var dwawFile = DrawFile(packageArray: [])
+    private lazy var drawFile = DrawFile(packageArray: [])
     //每次touchsbegin的时间，后续为计算偏移量用
     private var beginDate: Date?
     //绘制记录的脚本用的
@@ -146,17 +146,22 @@ public class DrawView: UIView {
         // 保存当前操作，为了录制
         self.beginDate = Date()
         
-        let model = DrawBrushModel(brushColor: self.brushColor, brushWidth: self.brushWidth, shapeType: self.shapeType, isEraser: self.isEraser, beginPoint: DrawPointModel(xPoint: point.x, yPoint: point.y, timeOffset: 0), endPoint: nil)
+        let model = DrawBrushModel(brush: DrawBrushModel.Brush(brushColor: self.brushColor, brushWidth: self.brushWidth, shapeType: self.shapeType, isEraser: self.isEraser, beginPoint: DrawBrushModel.Point(x: point.x, y: point.y, timeOffset: 0), endPoint: nil))
         self.addModelToPackage(model)
     }
     
     public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let point = touches.first?.location(in: self) else { return }
         guard var brush = self.brushArray.last else { return }
-        var drawPackage = self.dwawFile.packageArray.last
-        let pointModel = DrawPointModel(xPoint: point.x, yPoint: point.y, timeOffset: fabs(self.beginDate?.timeIntervalSinceNow ?? 0.0))
         
-        drawPackage?.pointOrBrushArray.append(pointModel)
+        //linyl
+        if var drawPackage = self.drawFile.packageArray.last {
+            let pointModel = DrawBrushModel.Point(x: point.x, y: point.y, timeOffset: fabs(self.beginDate?.timeIntervalSinceNow ?? 0.0))
+            drawPackage.pointOrBrushArray.append(DrawBrushModel(point: pointModel))
+            self.drawFile.packageArray.removeLast()
+            self.drawFile.packageArray.append(drawPackage)
+        }
+        //linyl
         
         if isEraser == true {
             brush.bezierPath?.addLine(to: point)
@@ -198,7 +203,7 @@ public class DrawView: UIView {
         let count = self.ctr
         if count <= 4 && self.shapeType == .curve {
             
-            for _ in stride(from: count, through: 0, by: -1) {
+            for _ in stride(from: 4, to: count, by: -1) {
                 self.touchesMoved(touches, with: event)
             }
             ctr = 0
@@ -223,12 +228,12 @@ public class DrawView: UIView {
             return
         }
         
-        let endPoint = DrawPointModel(xPoint: point.x, yPoint: point.y, timeOffset: abs(self.beginDate?.timeIntervalSinceNow ?? 0))
-        let brushModel = DrawBrushModel(brushColor: self.brushColor, brushWidth: self.brushWidth, shapeType: self.shapeType, isEraser: self.isEraser, beginPoint: nil, endPoint: endPoint)
-        if var drawPackage = self.dwawFile.packageArray.last {
+        let endPoint = DrawBrushModel.Point(x: point.x, y: point.y, timeOffset: abs(self.beginDate?.timeIntervalSinceNow ?? 0))
+        let brushModel = DrawBrushModel(brush: DrawBrushModel.Brush(brushColor: self.brushColor, brushWidth: self.brushWidth, shapeType: self.shapeType, isEraser: self.isEraser, beginPoint: nil, endPoint: endPoint))
+        if var drawPackage = self.drawFile.packageArray.last {
             drawPackage.pointOrBrushArray.append(brushModel)
-            self.dwawFile.packageArray.removeLast()
-            self.dwawFile.packageArray.append(drawPackage)
+            self.drawFile.packageArray.removeLast()
+            self.drawFile.packageArray.append(drawPackage)
         }
     }
     
@@ -257,11 +262,11 @@ public class DrawView: UIView {
         redoArray.removeAll()
     }
     
-    private func addModelToPackage(_ drawModel: XYDrawable) {
+    private func addModelToPackage(_ drawModel: DrawBrushModel) {
         let drawPackage = DrawPackageModel(pointOrBrushArray: [drawModel])
-        var packageArray = self.dwawFile.packageArray
+        var packageArray = self.drawFile.packageArray
         packageArray.append(drawPackage)
-        self.dwawFile.packageArray = packageArray
+        self.drawFile.packageArray = packageArray
     }
     
     // 设置为橡皮擦模式
@@ -332,104 +337,248 @@ public class DrawView: UIView {
         }
     }
     
-    private func updateDrawBrush(_ model: DrawBrushModel) {
+    private func updateDrawBrush(_ model: DrawBrushModel.Brush) {
+        
         self.brushColor = model.brushColor
         self.brushWidth = model.brushWidth
         self.shapeType = model.shapeType
         self.isEraser = model.isEraser
     }
     
-    //linyl
-//    fileprivate func drawNextPackage() {
-//        if recPackageArray == nil {
-//            // 当需要绘制的_recPackageArray为nil时，读取本地已录制的线，将其设置为待绘画的线
-//            let object = UserDefaults.standard.object(forKey: "recPackageArray")
-//            //解档
-//            let decoder = JSONDecoder()
-//            if let data = object as? Data {
-//                let objectA = try? decoder.decode(DrawFile.self, from: data)
-//                print(String(describing: objectA))
-//            }
-//        }
-//    }
-//    - (void)drawNextPackage
-//    {
-//        if(!_recPackageArray)
-//        {
-//            // 当需要绘制的_recPackageArray为nil时，读取本地已录制的线，将其设置为待绘画的线
-//            NSString *filePath = [NSString stringWithFormat:@"%@%@",NSTemporaryDirectory(), @"drawFile"];
-//            LSDrawFile *drawFile = [NSKeyedUnarchiver unarchiveObjectWithFile:filePath];
-//            if (drawFile)
-//            {
-//                _recPackageArray = drawFile.packageArray;
-//            }
-//        }
-//
-//        if (_recPackageArray.count > 0)
-//        {
-//            LSDrawPackage *pack = [_recPackageArray firstObject];
-//            [_recPackageArray removeObjectAtIndex:0];
-//
-//            for (LSDrawModel *drawModel in pack.pointOrBrushArray)
-//            {
-//                if (drawModel)
-//                {
-//
-//    //                dispatch_async(dispatch_get_main_queue(), ^{
-//
-//                        double packageOffset = 0.0;
-//                        if ([drawModel isKindOfClass:[LSPointModel class]])
-//                        {
-//                            LSPointModel *pointModel = (LSPointModel *)drawModel;
-//                            [self performSelector:@selector(drawWithPointModel:) withObject:drawModel afterDelay:pointModel.timeOffset];
-//                        }
-//                        else if([drawModel isKindOfClass:[LSBrushModel class]])
-//                        {
-//                            LSBrushModel *brushModel = (LSBrushModel*)drawModel;
-//
-//                            if (brushModel.beginPoint)
-//                            {
-//                                packageOffset = brushModel.beginPoint.timeOffset;
-//                            }
-//                            else
-//                            {
-//                                packageOffset = brushModel.endPoint.timeOffset;
-//                            }
-//                            [self performSelector:@selector(drawWithBrushModel:) withObject:drawModel afterDelay:packageOffset];
-//                        }
-//                        else if([drawModel isKindOfClass:[LSActionModel class]])
-//                        {
-//                            LSActionModel *actionModel = (LSActionModel*)drawModel;
-//                            switch (actionModel.ActionType)
-//                            {
-//                                case LSDrawActionRedo:
-//                                    [self performSelector:@selector(actionReDo) withObject:nil afterDelay:0.5];
-//                                    break;
-//
-//                                case LSDrawActionUndo:
-//                                    [self performSelector:@selector(actionUnDo) withObject:nil afterDelay:0.5];
-//                                    break;
-//                                case LSDrawActionSave:
-//                                    [self performSelector:@selector(actionSave) withObject:nil afterDelay:0.5];
-//                                    break;
-//                                case LSDrawActionClean:
-//                                    [self performSelector:@selector(actionClean) withObject:nil afterDelay:0.5];
-//                                    break;
-//
-//                                default:
-//                                    break;
-//                            }
-//                        }
-//
-//
-//    //                });
-//
-//
-//                }
-//            }
-//        }
-//    }
+    private func drawMove(point: CGPoint) {
+        guard var brush = self.brushArray.last else {
+            return
+        }
+        
+        if isEraser == true {
+            brush.bezierPath?.addLine(to: point)
+            self.setEraserMode(brush: brush)
+        }
+        else {
+            switch self.shapeType {
+            case .curve:
+                ctr += 1
+                pts[ctr] = point
+                if ctr == 4 {
+                    pts[3] = CGPoint(x: (pts[2].x + pts[4].x)/2.0, y: (pts[2].y + pts[4].y)/2.0)
+                    brush.bezierPath?.move(to: pts[0])
+                    brush.bezierPath?.addCurve(to: pts[3], controlPoint1: pts[1], controlPoint2: pts[2])
+                    pts[0] = pts[3]
+                    pts[1] = pts[4]
+                    ctr = 1
+                }
+            case .line:
+                brush.bezierPath?.removeAllPoints()
+                brush.bezierPath?.move(to: brush.beginPoint ?? .zero)
+                brush.bezierPath?.addLine(to: point)
+            case .ellipse:
+                brush.updateBezierPath(UIBezierPath(ovalIn: self.getRectWithStartPoint(brush.beginPoint ?? .zero, endPoint: point)))
+                self.brushArray.removeLast()
+                self.brushArray.append(brush)
+            case .rect:
+                brush.updateBezierPath(UIBezierPath(rect: self.getRectWithStartPoint(brush.beginPoint ?? .zero, endPoint: point)))
+                self.brushArray.removeLast()
+                self.brushArray.append(brush)
+                
+            }
+        }
+        
+        //在画布上画线
+        canvasView.setBrush(brush)
+    }
+    
+    @objc private func draw(point: CGPoint) {
+        self.drawMove(point: point)
+    }
+    
+    private func drawbegin(point: CGPoint) {
+        let path = UIBezierPath()
+        path.move(to: point)
+        let brush = DrawBrush(brushColor: self.brushColor, brushWidth: self.brushWidth, isEraser: self.isEraser, shapeType: self.shapeType, bezierPath: path, beginPoint: point)
+        self.brushArray.append(brush)
+        
+        
+        //每次画线前，都清除重做列表。
+    //    [self cleanRedoArray];
+        
+        ctr = 0;
+        pts[0] = point;
+    }
+    
+    private func drawEnd(point: CGPoint) {
+        
+        let count = ctr
+        if count <= 4 && shapeType == .curve {
+            
+            for _ in stride(from: 4, to: count, by: -1) {
+                self.drawMove(point: point)
+            }
+            ctr = 0
+        }
+        else {
+            self.drawMove(point: point)
+        }
+        
+        //画布view与合成view 合成为一张图（使用融合卡）
+        let img = self.composeBrushToImage()
+        //清空画布
+        canvasView.setBrush(nil)
+        //保存到存储，撤销用。
+        self.saveTempPic(image: img)
+        
+        self.drawNextPackage()
+        
+    }
+    
+    @objc private func draw(brush: Any) {
+        guard let _brush = brush as? DrawBrushModel.Brush else {
+            return
+        }
+        if let beginPoint = _brush.beginPoint {
+            
+            brushColor = _brush.brushColor
+            brushWidth = _brush.brushWidth
+            shapeType  = _brush.shapeType
+            isEraser   = _brush.isEraser
+            self.drawbegin(point: CGPoint(x: beginPoint.x, y: beginPoint.y))
+        }
+        else {
+            self.drawEnd(point: CGPoint(x: _brush.endPoint?.x ?? 0, y: _brush.endPoint?.y ?? 0))
+        }
+    }
+    
+    @objc private func actionUndo() {
+        if undoArray.count == 0 {
+            return
+        }
+    
+        let lastPath = undoArray.last!
+        undoArray.removeLast()
+        redoArray.append(lastPath)
+        
+        DispatchQueue.global(qos: .default).async {
+            var undoImage: UIImage? = nil
+            if self.undoArray.count > 0, let url = URL(string: self.undoArray.last!) {
+                if let imageData = try? Data(contentsOf: url) {
+                    undoImage = UIImage(data: imageData)
+                }
+            }
+            DispatchQueue.main.async {
+                self.composeView.image = undoImage
+            }
+        }
+        //linyl
+        self.drawNextPackage()
+    }
+    
+    @objc private func actionRedo() {
+        if redoArray.count == 0 {
+            return
+        }
+    
+        let lastPath = redoArray.last!
+        redoArray.removeLast()
+        undoArray.append(lastPath)
+        
+        DispatchQueue.global(qos: .default).async {
+            var undoImage: UIImage? = nil
+            if let url = URL(string: lastPath), let imageData = try? Data(contentsOf: url) {
+                undoImage = UIImage(data: imageData)
+            }
+            DispatchQueue.main.async {
+                self.composeView.image = undoImage
+            }
+        }
+        //linyl
+        self.drawNextPackage()
+    }
 
+    @objc private func actionSave() {
+        UIGraphicsBeginImageContextWithOptions(self.frame.size, false, 0.0)
+        
+        guard let context = UIGraphicsGetCurrentContext() else {
+            UIGraphicsEndImageContext()
+            return
+        }
+        
+        self.layer.render(in: context)
+        
+        if let image = UIGraphicsGetImageFromCurrentImageContext() {
+            UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
+        }
+        
+        UIGraphicsEndImageContext()
+        //linyl
+        self.drawNextPackage()
+    }
+    
+    
+    @objc private func actionClean() {
+        composeView.image = nil
+        brushArray.removeAll()
+        
+        //删除存储的文件
+        self.cleanUndoArray()
+        self.cleanRedoArray()
+        //linyl
+        self.drawNextPackage()
+    }
+
+
+    
+    //linyl
+    fileprivate func drawNextPackage() {
+        if recPackageArray == nil {
+            // 当需要绘制的_recPackageArray为nil时，读取本地已录制的线，将其设置为待绘画的线
+            let object = UserDefaults.standard.object(forKey: "recPackageArray")
+            //解档
+            let decoder = JSONDecoder()
+            if let data = object as? Data, let drawFile = try? decoder.decode(DrawFile.self, from: data) {
+                
+                print(String(describing: drawFile))
+                self.recPackageArray = drawFile.packageArray
+            }
+        }
+        
+        guard var recPackageArray = self.recPackageArray, recPackageArray.count > 0 else {
+            return
+        }
+        
+        let pack = recPackageArray[0]
+        recPackageArray.removeFirst()
+        self.recPackageArray = recPackageArray
+        pack.pointOrBrushArray.forEach { (model) in
+            
+            var packageOffset: Double = 0.0
+            if let point = model.point {
+                self.perform(#selector(draw(point:)), with: CGPoint(x: point.x, y: point.y), afterDelay: point.timeOffset)
+            }
+            else if let brush = model.brush {
+                
+                if let beginPoint = brush.beginPoint {
+                    packageOffset = beginPoint.timeOffset
+                }
+                else {
+                    packageOffset = brush.endPoint?.timeOffset ?? 0.0
+                }
+                self.perform(#selector(draw(brush:)), with: brush, afterDelay: packageOffset)
+            }
+            else if let action = model.action {
+                switch action {
+                case .clean:
+                    self.perform(#selector(actionClean), with: nil, afterDelay: 0.5)
+                case .redo:
+                    self.perform(#selector(actionRedo), with: nil, afterDelay: 0.5)
+                case .undo:
+                    self.perform(#selector(actionUndo), with: nil, afterDelay: 0.5)
+                case .save:
+                    self.perform(#selector(actionSave), with: nil, afterDelay: 0.5)
+                default:
+                    break
+                }
+            }
+        }
+    }
 }
 
 extension DrawView {
@@ -461,7 +610,7 @@ extension DrawView {
             }
         }
         
-        self.addModelToPackage(DrawAction.undo)
+        self.addModelToPackage(DrawBrushModel(action: DrawAction.undo))
     }
     
     //重做
@@ -486,7 +635,7 @@ extension DrawView {
             }
         }
         
-        self.addModelToPackage(DrawAction.redo)
+        self.addModelToPackage(DrawBrushModel(action: DrawAction.redo))
     }
     
     
@@ -503,7 +652,7 @@ extension DrawView {
         UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
         UIGraphicsEndImageContext()
         
-        self.addModelToPackage(DrawAction.save)
+        self.addModelToPackage(DrawBrushModel(action: DrawAction.save))
         
     }
     
@@ -515,28 +664,27 @@ extension DrawView {
         self.cleanUndoArray()
         self.cleanRedoArray()
         
-        self.addModelToPackage(DrawAction.clean)
+        self.addModelToPackage(DrawBrushModel(action: DrawAction.clean))
     }
 
     
     //录制脚本
     public func testRecToFile() {
         
-//        NSString *filePath = [NSString stringWithFormat:@"%@%@",NSTemporaryDirectory(), @"drawFile"];
-//
-//        NSLog(@"drawfile:%@",filePath);
-//
-//        BOOL bRet = [NSKeyedArchiver archiveRootObject:_dwawFile toFile:filePath];
-//
-//        if (bRet)
-//        {
-//            NSLog(@"archive Succ");
-//        }
-
+        //归档
+        let encoder = JSONEncoder()
+        do {
+            let data = try encoder.encode(self.drawFile)
+            print(String(data: data, encoding: .utf8) ?? "")
+            UserDefaults.standard.set(data, forKey: "recPackageArray")
+            print("Rec Success")
+        } catch let ex {
+            print(ex.localizedDescription)
+        }
     }
     
     //绘制已录制的脚本
     public func testPlayFromFile() {
-        
+        drawNextPackage()
     }
 }
